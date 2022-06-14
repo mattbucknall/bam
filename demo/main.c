@@ -45,6 +45,9 @@
 
 // ******** STYLE DATA ********
 
+// defined in font-deja-vu-sans-48.c
+extern const font2c_font_t font_deja_vu_sans_48;
+
 // defined in font-deja-vu-sans-64.c
 extern const font2c_font_t font_deja_vu_sans_64;
 
@@ -67,7 +70,7 @@ extern const font2c_font_t font_deja_vu_sans_64;
 
 
 static const bam_style_t APP_DEFAULT_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_64,
+        .font = &font_deja_vu_sans_48,
         .h_align = BAM_H_ALIGN_CENTER,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .h_padding = 4,
@@ -93,7 +96,7 @@ static const bam_style_t APP_DEFAULT_STYLE = { // NOLINT(cppcoreguidelines-inter
 
 
 static const bam_style_t APP_NUM_FIELD_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_64,
+        .font = &font_deja_vu_sans_48,
         .h_align = BAM_H_ALIGN_RIGHT,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .h_padding = 4,
@@ -114,7 +117,7 @@ static const bam_style_t APP_NUM_FIELD_STYLE = { // NOLINT(cppcoreguidelines-int
 
 
 static const bam_style_t APP_EDIT_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_64,
+        .font = &font_deja_vu_sans_48,
         .h_align = BAM_H_ALIGN_CENTER,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .colors = {
@@ -138,7 +141,7 @@ static const bam_style_t APP_EDIT_STYLE = { // NOLINT(cppcoreguidelines-interfac
 
 
 static const bam_style_t APP_ACCEPT_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_64,
+        .font = &font_deja_vu_sans_48,
         .h_align = BAM_H_ALIGN_CENTER,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .colors = {
@@ -162,7 +165,7 @@ static const bam_style_t APP_ACCEPT_STYLE = { // NOLINT(cppcoreguidelines-interf
 
 
 static const bam_style_t APP_CANCEL_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_64,
+        .font = &font_deja_vu_sans_48,
         .h_align = BAM_H_ALIGN_CENTER,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .colors = {
@@ -186,6 +189,7 @@ static const bam_style_t APP_CANCEL_STYLE = { // NOLINT(cppcoreguidelines-interf
 
 
 static const bam_editor_style_t APP_EDITOR_STYLE = {
+        .num_key_style = &APP_DEFAULT_STYLE,
         .char_key_style = &APP_DEFAULT_STYLE,
         .edit_key_style = &APP_EDIT_STYLE,
         .accept_key_style = &APP_ACCEPT_STYLE,
@@ -196,7 +200,7 @@ static const bam_editor_style_t APP_EDITOR_STYLE = {
         .clear_text = "CL",
         .accept_text = "OK",
         .cancel_text = "CAN",
-        .spacing = 4
+        .spacing = 8
 };
 
 
@@ -590,13 +594,20 @@ int main(int argc, char* argv[]) {
 
     // start event loop
     //bam_start(&m_bam);
-    double value = 1000.0;
 
-    if ( bam_edit_real(&m_bam, &value, &APP_EDITOR_STYLE) ) {
-        printf("ACCEPTED: %f\n", value);
+    int value = 123;
+    bam_edit_integer(&m_bam, &value, true, &APP_EDITOR_STYLE);
+
+    static char buffer[64];
+    strcpy(buffer, "Hello");
+
+    if ( bam_edit_string(&m_bam, buffer, 64,  false, &APP_EDITOR_STYLE) ) {
+        printf("ACCEPTED: '%s'\n", buffer);
     } else {
         printf("CANCELLED\n");
     }
+
+
 
     // cleanup and exit
     exit_code = EXIT_SUCCESS;

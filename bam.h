@@ -207,6 +207,10 @@ void bam_force_widget_redraw(bam_t* bam, bam_widget_handle_t widget);
 void bam_set_widget_callback(bam_t* bam, bam_widget_handle_t widget, bam_widget_callback_t callback,
                              void* user_data);
 
+void bam_set_widget_bounds(bam_t* bam, bam_widget_handle_t widget, const bam_rect_t* bounds);
+
+const bam_rect_t* bam_get_widget_bounds(bam_t* bam, bam_widget_handle_t widget);
+
 void bam_set_widget_style(bam_t* bam, bam_widget_handle_t widget, const bam_style_t* style);
 
 const bam_style_t* bam_get_widget_style(const bam_t* bam, bam_widget_handle_t widget);
@@ -242,7 +246,11 @@ void bam_layout_grid(bam_t* bam, int n_cols, int n_rows, const bam_rect_t* bound
 
 // ******** EDITOR API ********
 
+#define BAM_EDIT_IPV4_ADDRESS_BUFFER_SIZE       16
+
+
 typedef struct {
+    const bam_style_t* num_key_style;
     const bam_style_t* char_key_style;
     const bam_style_t* edit_key_style;
     const bam_style_t* accept_key_style;
@@ -253,13 +261,22 @@ typedef struct {
     const char* clear_text;
     const char* accept_text;
     const char* cancel_text;
+    const char* space_text;
     int spacing;
 } bam_editor_style_t;
+
+
+typedef struct {
+    char str[BAM_EDIT_IPV4_ADDRESS_BUFFER_SIZE];
+} bam_editor_ipv4_address_t;
 
 
 bool bam_edit_integer(bam_t* bam, int* value, bool is_signed, const bam_editor_style_t* editor_style);
 
 bool bam_edit_real(bam_t* bam, bam_real_t* value, const bam_editor_style_t* editor_style);
+
+bool bam_edit_string(bam_t* bam, char* buffer, size_t buffer_size, bool allow_empty,
+                     const bam_editor_style_t* editor_style);
 
 
 // ******** IMPLEMENTATION (PRIVATE) ********

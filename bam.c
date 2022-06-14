@@ -89,6 +89,16 @@ static void rect_init(bam_rect_t* rect, int x, int y, int width, int height) {
 }
 
 
+static void rect_init_empty(bam_rect_t* rect) {
+    BAM_ASSERT(rect);
+
+    rect->x1 = 0;
+    rect->y1 = 0;
+    rect->x2 = 0;
+    rect->y2 = 0;
+}
+
+
 static bool rect_empty(const bam_rect_t* rect) {
     BAM_ASSERT(rect);
     return rect->x2 <= rect->x1 || rect->y2 <= rect->y1;
@@ -343,6 +353,11 @@ static void draw_widget(bam_t* bam, const bam_widget_t* widget) {
     bam_draw_state_t saved_draw_state = bam->draw_state;
     bam_rect_t inner;
 
+    // if widget does not have valid bounding rectangle, do nothing
+    if ( rect_empty(&widget->rect) ) {
+        return;
+    }
+
     // get colors for state
     colors = &style->colors[widget->state];
 
@@ -362,12 +377,12 @@ static void draw_widget(bam_t* bam, const bam_widget_t* widget) {
         draw_set_clip(bam, &inner);
 
         // if widget has text, draw it
-        if ( widget->text[0] ) {
+        if (widget->text[0]) {
             int text_x;
             int text_y;
 
             // calculate horizontal text position based on style's h_align property
-            switch(style->h_align) {
+            switch (style->h_align) {
             case BAM_H_ALIGN_CENTER:
                 text_x = (inner.x1 + inner.x2) / 2;
                 break;
@@ -381,7 +396,7 @@ static void draw_widget(bam_t* bam, const bam_widget_t* widget) {
             }
 
             // calculate vertical text position based on style's v_align property
-            switch(style->v_align) {
+            switch (style->v_align) {
             case BAM_V_ALIGN_MIDDLE:
                 text_y = (inner.y1 + inner.y2) / 2;
                 break;
@@ -642,6 +657,26 @@ void bam_set_widget_callback(bam_t* bam, bam_widget_handle_t widget, bam_widget_
 }
 
 
+void bam_set_widget_bounds(bam_t* bam, bam_widget_handle_t widget, const bam_rect_t* bounds) {
+    BAM_ASSERT_CTX(bam);
+    BAM_ASSERT_WIDGET_HANDLE(bam, widget);
+
+    bam_widget_t* _widget = widget_from_handle(bam, widget);
+
+    widget_make_dirty(bam, _widget);
+    _widget->rect = *bounds;
+    widget_make_dirty(bam, _widget);
+}
+
+
+const bam_rect_t* bam_get_widget_bounds(bam_t* bam, bam_widget_handle_t widget) {
+    BAM_ASSERT_CTX(bam);
+    BAM_ASSERT_WIDGET_HANDLE(bam, widget);
+
+    return &(widget_from_handle(bam, widget)->rect);
+}
+
+
 void bam_set_widget_style(bam_t* bam, bam_widget_handle_t widget, const bam_style_t* style) {
     BAM_ASSERT_CTX(bam);
     BAM_ASSERT_WIDGET_HANDLE(bam, widget);
@@ -732,7 +767,7 @@ static bam_widget_t* widget_find_at_point(const bam_t* bam, int x, int y) {
     bam_widget_t* widget_begin = bam->widget_buffer_begin;
     bam_widget_t* widget_i = bam->widget_buffer_ptr;
 
-    while(widget_i != widget_begin) {
+    while (widget_i != widget_begin) {
         widget_i--;
 
         if (rect_contains_point(&widget_i->rect, x, y)) {
@@ -745,14 +780,14 @@ static bam_widget_t* widget_find_at_point(const bam_t* bam, int x, int y) {
 
 
 static void widget_set_pressed(bam_t* bam, bam_widget_t* widget) {
-    if ( bam->pressed_widget ) {
+    if (bam->pressed_widget) {
         bam->pressed_widget->state = BAM_STATE_ENABLED;
         widget_make_dirty(bam, bam->pressed_widget);
     }
 
     bam->pressed_widget = widget;
 
-    if ( bam->pressed_widget ) {
+    if (bam->pressed_widget) {
         bam->pressed_widget->state = BAM_STATE_PRESSED;
         widget_make_dirty(bam, bam->pressed_widget);
     }
@@ -794,7 +829,7 @@ int bam_start(bam_t* bam) {
         triggered_widget = NULL;
 
         // clean dirty buffer if an event occurred that necessitates it
-        if ( need_clean ) {
+        if (need_clean) {
             need_clean = false;
             dirty_clean(bam);
         }
@@ -816,7 +851,7 @@ int bam_start(bam_t* bam) {
                 widget = widget_find_at_point(bam, event.x, event.y);
 
                 // if a widget was found and is enabled, set its state to pressed
-                if ( widget && widget->state == BAM_STATE_ENABLED ) {
+                if (widget && widget->state == BAM_STATE_ENABLED) {
                     widget_set_pressed(bam, widget_find_at_point(bam, event.x, event.y));
                     need_clean = true;
                 }
@@ -824,12 +859,12 @@ int bam_start(bam_t* bam) {
 
             case BAM_EVENT_TYPE_RELEASE:
                 // if a pressed widget exists, see if it is the same widget at release coordinate
-                if ( bam->pressed_widget ) {
+                if (bam->pressed_widget) {
                     // find widget at released coordinate
                     widget = widget_find_at_point(bam, event.x, event.y);
 
                     // if found widget is the pressed widget mark it as triggered
-                    if (widget == bam->pressed_widget ) {
+                    if (widget == bam->pressed_widget) {
                         triggered_widget = widget;
                     }
                 }
@@ -845,7 +880,7 @@ int bam_start(bam_t* bam) {
         }
 
         // if a widget has been triggered and it has a callback function, dispatch it
-        if ( triggered_widget && triggered_widget->callback ) {
+        if (triggered_widget && triggered_widget->callback) {
             triggered_widget->callback(bam, triggered_widget - bam->widget_buffer_begin, triggered_widget->user_data);
         }
     } while (run_flag && !bam->quit_flag);
@@ -947,10 +982,12 @@ typedef enum {
 
 
 typedef enum {
-    BAM_EDIT_NUMBER_KEY_7,      BAM_EDIT_NUMBER_KEY_8,      BAM_EDIT_NUMBER_KEY_9,      BAM_EDIT_NUMBER_KEY_BACKSPACE,
-    BAM_EDIT_NUMBER_KEY_4,      BAM_EDIT_NUMBER_KEY_5,      BAM_EDIT_NUMBER_KEY_6,      BAM_EDIT_NUMBER_KEY_CLEAR,
-    BAM_EDIT_NUMBER_KEY_1,      BAM_EDIT_NUMBER_KEY_2,      BAM_EDIT_NUMBER_KEY_3,      BAM_EDIT_NUMBER_KEY_ACCEPT,
-    BAM_EDIT_NUMBER_KEY_DP,     BAM_EDIT_NUMBER_KEY_0,      BAM_EDIT_NUMBER_KEY_MINUS,  BAM_EDIT_NUMBER_KEY_CANCEL
+    BAM_EDIT_NUMBER_KEY_BACKSPACE = 3,
+    BAM_EDIT_NUMBER_KEY_CLEAR = 7,
+    BAM_EDIT_NUMBER_KEY_ACCEPT = 11,
+    BAM_EDIT_NUMBER_KEY_DP = 12,
+    BAM_EDIT_NUMBER_KEY_MINUS = 14,
+    BAM_EDIT_NUMBER_KEY_CANCEL = 15
 } bam_edit_number_key_t;
 
 
@@ -960,6 +997,29 @@ typedef enum {
     BAM_EDIT_NUMBER_METADATA_ACCEPT,
     BAM_EDIT_NUMBER_METADATA_CANCEL
 } bam_edit_number_metadata_t;
+
+
+typedef enum {
+    BAM_EDIT_STRING_KEY_SHIFT = 30,
+    BAM_EDIT_STRING_KEY_BACKSPACE = 39,
+    BAM_EDIT_STRING_KEY_CANCEL = 40,
+    BAM_EDIT_STRING_KEY_CLEAR = 41,
+    BAM_EDIT_STRING_KEY_SPACE = 42,
+    BAM_EDIT_STRING_KEY_UNUSED_BEGIN = 43,
+    BAM_EDIT_STRING_KEY_UNUSED_END = 48,
+    BAM_EDIT_STRING_KEY_ACCEPT = 49
+} bam_edit_string_key_t;
+
+
+typedef enum {
+    BAM_EDIT_STRING_METADATA_CHAR,
+    BAM_EDIT_STRING_METADATA_SHIFT,
+    BAM_EDIT_STRING_METADATA_BACKSPACE,
+    BAM_EDIT_STRING_METADATA_CANCEL,
+    BAM_EDIT_STRING_METADATA_CLEAR,
+    BAM_EDIT_STRING_METADATA_ACCEPT,
+    BAM_EDIT_STRING_METADATA_SPACE
+} bam_edit_string_metadata_t;
 
 
 typedef struct {
@@ -972,13 +1032,24 @@ typedef struct {
 } bam_edit_number_ctx_t;
 
 
+typedef struct {
+    bam_widget_handle_t field_widget;
+    bam_widget_handle_t key_widgets[50];
+    char* buffer_begin;
+    char* buffer_ptr;
+    char* buffer_end;
+    bool allow_empty;
+    bool shifted;
+} bam_edit_string_ctx_t;
+
+
 static void edit_number_enforce_format(bam_t* bam, bam_edit_number_ctx_t* ctx) {
     const char* str = ctx->buffer_begin;
     size_t length = ctx->buffer_ptr - ctx->buffer_begin;
     bam_widget_handle_t dp_widget = ctx->key_widgets[BAM_EDIT_NUMBER_KEY_DP];
     bam_widget_handle_t minus_widget = ctx->key_widgets[BAM_EDIT_NUMBER_KEY_MINUS];
 
-    switch(length) {
+    switch (length) {
     case 0:
         bam_set_widget_enabled(bam, dp_widget, false);
         bam_set_widget_enabled(bam, minus_widget, ctx->type != BAM_NUMBER_TYPE_UNSIGNED_INT);
@@ -986,30 +1057,31 @@ static void edit_number_enforce_format(bam_t* bam, bam_edit_number_ctx_t* ctx) {
 
     case 1:
         bam_set_widget_enabled(bam, dp_widget, ctx->type == BAM_NUMBER_TYPE_REAL &&
-                lex_is_digit(str[0]));
+                                               lex_is_digit(str[0]));
 
         bam_set_widget_enabled(bam, minus_widget, false);
         break;
 
     default:
         bam_set_widget_enabled(bam, dp_widget, ctx->type == BAM_NUMBER_TYPE_REAL &&
-                strchr(str, '.') == NULL);
+                                               strchr(str, '.') == NULL);
 
         bam_set_widget_enabled(bam, minus_widget, false);
     }
 
+    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_ACCEPT], length > 0 &&
+                                                                              lex_is_digit(ctx->buffer_ptr[-1]));
+
+
     bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_BACKSPACE], length > 0);
     bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_CLEAR], length > 0);
-
-    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_ACCEPT], length > 0 &&
-            lex_is_digit(ctx->buffer_ptr[-1]));
 
     bam_force_widget_redraw(bam, ctx->field_widget);
 }
 
 
 static void edit_number_append(bam_t* bam, bam_edit_number_ctx_t* ctx, char c) {
-    if ( ctx->buffer_ptr < ctx->buffer_end ) {
+    if (ctx->buffer_ptr < ctx->buffer_end) {
         ctx->buffer_ptr[0] = c;
         ctx->buffer_ptr++;
         ctx->buffer_ptr[0] = '\0';
@@ -1022,9 +1094,9 @@ static void edit_number_key_func(bam_t* bam, bam_widget_handle_t widget, void* u
     bam_edit_number_ctx_t* ctx = user_data;
     uintptr_t metadata = bam_get_widget_metadata(bam, widget);
 
-    switch(metadata) {
+    switch (metadata) {
     case BAM_EDIT_NUMBER_METADATA_BACKSPACE:
-        if ( ctx->buffer_ptr != ctx->buffer_begin ) {
+        if (ctx->buffer_ptr != ctx->buffer_begin) {
             ctx->buffer_ptr--;
             ctx->buffer_ptr[0] = '\0';
             edit_number_enforce_format(bam, ctx);
@@ -1068,6 +1140,9 @@ static bool edit_number(bam_t* bam, char* buffer, size_t buffer_size, bam_number
     bam_rect_t bounds;
     bam_edit_number_ctx_t ctx;
 
+    // ensure end of buffer is null-terminated
+    buffer[buffer_size - 1] = '\0';
+
     // initialise editor context
     ctx.type = type;
     ctx.buffer_begin = buffer;
@@ -1085,12 +1160,12 @@ static bool edit_number(bam_t* bam, char* buffer, size_t buffer_size, bam_number
     field_height = font_metrics.line_height + (2 * style->v_padding);
 
     // if number is real, remove trailing zeros and decimal point if number is whole
-    if ( type == BAM_NUMBER_TYPE_REAL ) {
+    if (type == BAM_NUMBER_TYPE_REAL) {
         while (ctx.buffer_ptr > ctx.buffer_begin && ctx.buffer_ptr[-1] == '0') {
             ctx.buffer_ptr--;
         }
 
-        if ( ctx.buffer_ptr > ctx.buffer_begin && ctx.buffer_ptr[-1] == '.' ) {
+        if (ctx.buffer_ptr > ctx.buffer_begin && ctx.buffer_ptr[-1] == '.') {
             ctx.buffer_ptr--;
         }
 
@@ -1099,7 +1174,7 @@ static bool edit_number(bam_t* bam, char* buffer, size_t buffer_size, bam_number
 
     // create field widget
     ctx.field_widget = bam_add_widget(bam, 0, 0, bam->disp_width, field_height,
-                                  style, buffer, false);
+                                      style, buffer, false);
 
     // define keypad bounds
     bounds.x1 = 0;
@@ -1109,7 +1184,7 @@ static bool edit_number(bam_t* bam, char* buffer, size_t buffer_size, bam_number
 
     // create keypad widgets
     bam_layout_grid(bam, 4, 4, &bounds, spacing, spacing,
-                    widget_get_style(bam, editor_style->char_key_style), true,
+                    widget_get_style(bam, editor_style->num_key_style), true,
                     ctx.key_widgets, 16);
 
     // set numeric key text, metadata and callbacks
@@ -1148,7 +1223,7 @@ static bool edit_number(bam_t* bam, char* buffer, size_t buffer_size, bam_number
     edit_number_enforce_format(bam, &ctx);
 
     // start event loop
-    return bam_start(bam) ? true : false;
+    return bam_start(bam);
 }
 
 
@@ -1166,12 +1241,12 @@ bool bam_edit_integer(bam_t* bam, int* value, bool is_signed, const bam_editor_s
                            is_signed ? BAM_NUMBER_TYPE_SIGNED_INT : BAM_NUMBER_TYPE_UNSIGNED_INT,
                            editor_style);
 
-    if ( accepted ) {
+    if (accepted) {
         long lvalue = strtol(buffer, NULL, 10);
 
-        if ( lvalue < INT_MIN ) {
+        if (lvalue < INT_MIN) {
             lvalue = INT_MIN;
-        } else if ( lvalue > INT_MAX ) {
+        } else if (lvalue > INT_MAX) {
             lvalue = INT_MAX;
         }
 
@@ -1195,11 +1270,268 @@ bool bam_edit_real(bam_t* bam, bam_real_t* value, const bam_editor_style_t* edit
     accepted = edit_number(bam, buffer, BAM_EDIT_NUMBER_BUFFER_SIZE, BAM_NUMBER_TYPE_REAL,
                            editor_style);
 
-    if ( accepted ) {
+    if (accepted) {
         *value = strtod(buffer, NULL);
     }
 
     return accepted;
+}
+
+
+static const char* EDIT_STRING_KEYPAD_TEXT_UPPER[50] = {
+        "!", "@", "#", "$", "%", "^", "&", "*", "(", ")",
+        "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P",
+        "A", "S", "D", "F", "G", "H", "J", "K", "L", ".",
+        "", "Z", "X", "C", "V", "B", "N", "M", ",", "",
+        "", "", "", "", "", "", "", "", "", ""
+};
+
+
+static const char* EDIT_STRING_KEYPAD_TEXT_LOWER[50] = {
+        "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
+        "q", "w", "e", "r", "t", "y", "u", "i", "o", "p",
+        "a", "s", "d", "f", "g", "h", "j", "k", "l", ".",
+        "", "z", "x", "c", "v", "b", "n", "m", ",", "",
+        "", "", "", "", "", "", "", "", "", ""
+};
+
+
+static void edit_string_modify_char_keys(bam_t* bam, bam_edit_string_ctx_t* ctx) {
+    const char** text = ctx->shifted ? EDIT_STRING_KEYPAD_TEXT_UPPER : EDIT_STRING_KEYPAD_TEXT_LOWER;
+
+    for (int i = 0; i < 50; i++) {
+        if (bam_get_widget_metadata(bam, ctx->key_widgets[i]) == BAM_EDIT_STRING_METADATA_CHAR ) {
+            bam_set_widget_text(bam, ctx->key_widgets[i], text[i]);
+        }
+    }
+}
+
+
+static void edit_string_enforce_format(bam_t* bam, bam_edit_string_ctx_t* ctx) {
+    const char* str = ctx->buffer_begin;
+    size_t length = ctx->buffer_ptr - ctx->buffer_begin;
+    size_t space = ctx->buffer_end - 1 - ctx->buffer_ptr;
+    bool char_keys_changed = false;
+    bool char_keys_enabled;
+
+    if ( space == 0 && bam_get_widget_enabled(bam, ctx->key_widgets[0]) ) {
+        char_keys_changed = true;
+        char_keys_enabled = false;
+    } else if ( space > 0 && !bam_get_widget_enabled(bam, ctx->key_widgets[0]) ) {
+        char_keys_changed = true;
+        char_keys_enabled = true;
+    }
+
+    if ( char_keys_changed ) {
+        for (int i = 0; i < 50; i++) {
+            if (bam_get_widget_metadata(bam, ctx->key_widgets[i]) == BAM_EDIT_STRING_METADATA_CHAR ) {
+                bam_set_widget_enabled(bam, ctx->key_widgets[i], char_keys_enabled);
+            }
+        }
+
+        bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_SPACE], char_keys_enabled);
+    }
+
+    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_BACKSPACE], length > 0);
+    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_CLEAR], length > 0);
+    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_ACCEPT], length > 0 || ctx->allow_empty);
+
+    bam_force_widget_redraw(bam, ctx->field_widget);
+}
+
+
+static void edit_string_append(bam_t* bam, bam_edit_string_ctx_t* ctx, const char* str) {
+    size_t str_len = strlen(str);
+    size_t space = ctx->buffer_end - 1 - ctx->buffer_ptr;
+
+    if ( space >= str_len ) {
+        memcpy(ctx->buffer_ptr, str, str_len);
+        ctx->buffer_ptr += str_len;
+        ctx->buffer_ptr[0] = '\0';
+        edit_string_enforce_format(bam, ctx);
+    }
+}
+
+
+static void edit_string_truncate(bam_t* bam, bam_edit_string_ctx_t* ctx) {
+    while(ctx->buffer_ptr > ctx->buffer_begin) {
+        ctx->buffer_ptr--;
+
+        if ( (ctx->buffer_ptr[0] & 0xC0) != 0x80 ) {
+            break;
+        }
+    }
+
+    ctx->buffer_ptr[0] = '\0';
+    edit_string_enforce_format(bam, ctx);
+}
+
+
+static void edit_string_clear(bam_t* bam, bam_edit_string_ctx_t* ctx) {
+    ctx->buffer_ptr = ctx->buffer_begin;
+    ctx->buffer_ptr[0] = '\0';
+    edit_string_enforce_format(bam, ctx);
+}
+
+
+static void edit_string_key_func(bam_t* bam, bam_widget_handle_t widget, void* user_data) {
+    bam_edit_string_ctx_t* ctx = user_data;
+    uintptr_t metadata = bam_get_widget_metadata(bam, widget);
+
+    switch(metadata) {
+    case BAM_EDIT_STRING_METADATA_CHAR:
+        edit_string_append(bam, ctx, bam_get_widget_text(bam, widget));
+        break;
+
+    case BAM_EDIT_STRING_METADATA_SHIFT:
+        ctx->shifted = !(ctx->shifted);
+        edit_string_modify_char_keys(bam, ctx);
+        break;
+
+    case BAM_EDIT_STRING_METADATA_BACKSPACE:
+        edit_string_truncate(bam, ctx);
+        break;
+
+    case BAM_EDIT_STRING_METADATA_CANCEL:
+        bam_stop(bam, 0);
+        break;
+
+    case BAM_EDIT_STRING_METADATA_CLEAR:
+        edit_string_clear(bam, ctx);
+        break;
+
+    case BAM_EDIT_STRING_METADATA_ACCEPT:
+        bam_stop(bam, 1);
+        break;
+
+    case BAM_EDIT_STRING_METADATA_SPACE:
+        edit_string_append(bam, ctx, " ");
+        break;
+
+    default:
+        break;
+    }
+}
+
+
+bool bam_edit_string(bam_t* bam, char* buffer, size_t buffer_size, bool allow_empty,
+                     const bam_editor_style_t* editor_style) {
+    BAM_ASSERT_CTX(bam);
+    BAM_ASSERT(buffer);
+    BAM_ASSERT(buffer_size > 1);
+    BAM_ASSERT(editor_style);
+
+    const bam_vtable_t* vtable = bam->vtable;
+    const bam_style_t* style;
+    int spacing = editor_style->spacing;
+    bam_font_metrics_t font_metrics;
+    int field_height;
+    bam_rect_t bounds;
+    const bam_rect_t* bounds_ptr;
+    bam_edit_string_ctx_t ctx;
+
+    // ensure end of buffer is null-terminated
+    buffer[buffer_size - 1] = '\0';
+
+    // initialise editor context
+    ctx.buffer_begin = buffer;
+    ctx.buffer_ptr = buffer + strlen(buffer);
+    ctx.buffer_end = buffer + buffer_size;
+    ctx.allow_empty = allow_empty;
+    ctx.shifted = false;
+
+    // clear any existing widgets
+    bam_delete_widgets(bam);
+
+    // get font metrics for field
+    style = widget_get_style(bam, editor_style->field_style);
+    vtable->get_font_metrics(&font_metrics, style->font, bam->user_data);
+
+    // calculate field height
+    field_height = font_metrics.line_height + (2 * style->v_padding);
+
+    // create field widget
+    ctx.field_widget = bam_add_widget(bam, 0, 0, bam->disp_width, field_height,
+                                      style, buffer, false);
+
+    // define keypad bounds
+    bounds.x1 = 0;
+    bounds.y1 = field_height + spacing;
+    bounds.x2 = bam->disp_width;
+    bounds.y2 = bam->disp_height;
+
+    // create keypad widgets
+    bam_layout_grid(bam, 10, 5, &bounds, spacing, spacing,
+                    widget_get_style(bam, editor_style->char_key_style), true,
+                    ctx.key_widgets, 50);
+
+    // set letter/symbol key text, metadata and callbacks
+    for (int i = 0; i < 50; i++) {
+        bam_set_widget_metadata(bam, ctx.key_widgets[i], BAM_EDIT_STRING_METADATA_CHAR);
+        bam_set_widget_callback(bam, ctx.key_widgets[i], edit_string_key_func, &ctx);
+    }
+
+    // apply num key style to top row of keys
+    for (int i = 0; i < 10; i++) {
+        bam_set_widget_style(bam, ctx.key_widgets[i], editor_style->num_key_style);
+    }
+
+    edit_string_modify_char_keys(bam, &ctx);
+    
+    // apply style/text/metadata to shift key
+    bam_set_widget_style(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SHIFT], editor_style->edit_key_style);
+    bam_set_widget_text(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SHIFT], editor_style->shift_text);
+    bam_set_widget_metadata(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SHIFT], 
+                            BAM_EDIT_STRING_METADATA_SHIFT);
+    
+    // apply style/text/metadata to backspace key
+    bam_set_widget_style(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_BACKSPACE], editor_style->edit_key_style);
+    bam_set_widget_text(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_BACKSPACE], editor_style->backspace_text);
+    bam_set_widget_metadata(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_BACKSPACE],
+                            BAM_EDIT_STRING_METADATA_BACKSPACE);
+
+    // apply style/text/metadata to cancel key
+    bam_set_widget_style(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_CANCEL], editor_style->cancel_key_style);
+    bam_set_widget_text(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_CANCEL], editor_style->cancel_text);
+    bam_set_widget_metadata(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_CANCEL],
+                            BAM_EDIT_STRING_METADATA_CANCEL);
+
+    // apply style/text/metadata to clear key
+    bam_set_widget_style(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_CLEAR], editor_style->edit_key_style);
+    bam_set_widget_text(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_CLEAR], editor_style->clear_text);
+    bam_set_widget_metadata(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_CLEAR],
+                            BAM_EDIT_STRING_METADATA_CLEAR);
+
+    // apply style/text/metadata to accept key
+    bam_set_widget_style(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_ACCEPT], editor_style->accept_key_style);
+    bam_set_widget_text(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_ACCEPT], editor_style->accept_text);
+    bam_set_widget_metadata(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_ACCEPT],
+                            BAM_EDIT_STRING_METADATA_ACCEPT);
+
+    // apply style/text/metadata to space key
+    bam_set_widget_style(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SPACE], editor_style->char_key_style);
+    bam_set_widget_text(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SPACE], editor_style->space_text);
+    bam_set_widget_metadata(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SPACE],
+                            BAM_EDIT_STRING_METADATA_SPACE);
+
+    // stretch space key to span across unused widgets
+    bounds_ptr = bam_get_widget_bounds(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SPACE]);
+    bounds.x1 = bounds_ptr->x1;
+    bounds.y1 = bounds_ptr->y1;
+    bounds_ptr = bam_get_widget_bounds(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_UNUSED_END]);
+    bounds.x2 = bounds_ptr->x2;
+    bounds.y2 = bounds_ptr->y2;
+
+    bam_set_widget_bounds(bam, ctx.key_widgets[BAM_EDIT_STRING_KEY_SPACE], &bounds);
+
+    // invalidate unused widgets
+    rect_init_empty(&bounds);
+
+    for (int i = BAM_EDIT_STRING_KEY_UNUSED_BEGIN; i <= BAM_EDIT_STRING_KEY_UNUSED_END; i++) {
+        bam_set_widget_bounds(bam, ctx.key_widgets[i], &bounds);
+    }
+
+    return bam_start(bam);
 }
 
 
