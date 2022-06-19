@@ -48,8 +48,8 @@
 // defined in font-deja-vu-sans-48.c
 extern const font2c_font_t font_deja_vu_sans_48;
 
-// defined in font-deja-vu-sans-64.c
-extern const font2c_font_t font_deja_vu_sans_64;
+// defined in font-material-icons-48.c
+extern const font2c_font_t font_material_icons_48;
 
 
 #define APP_COLOR_BLACK             0xFF000000ul
@@ -117,7 +117,7 @@ static const bam_style_t APP_NUM_FIELD_STYLE = { // NOLINT(cppcoreguidelines-int
 
 
 static const bam_style_t APP_EDIT_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_48,
+        .font = &font_material_icons_48,
         .h_align = BAM_H_ALIGN_CENTER,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .colors = {
@@ -141,7 +141,7 @@ static const bam_style_t APP_EDIT_STYLE = { // NOLINT(cppcoreguidelines-interfac
 
 
 static const bam_style_t APP_ACCEPT_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_48,
+        .font = &font_material_icons_48,
         .h_align = BAM_H_ALIGN_CENTER,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .colors = {
@@ -165,7 +165,7 @@ static const bam_style_t APP_ACCEPT_STYLE = { // NOLINT(cppcoreguidelines-interf
 
 
 static const bam_style_t APP_CANCEL_STYLE = { // NOLINT(cppcoreguidelines-interfaces-global-init)
-        .font = &font_deja_vu_sans_48,
+        .font = &font_material_icons_48,
         .h_align = BAM_H_ALIGN_CENTER,
         .v_align = BAM_V_ALIGN_MIDDLE,
         .colors = {
@@ -195,11 +195,11 @@ static const bam_editor_style_t APP_EDITOR_STYLE = {
         .accept_key_style = &APP_ACCEPT_STYLE,
         .cancel_key_style = &APP_CANCEL_STYLE,
         .field_style = &APP_NUM_FIELD_STYLE,
-        .shift_text = "SH",
-        .backspace_text = "BS",
-        .clear_text = "CL",
-        .accept_text = "OK",
-        .cancel_text = "CAN",
+        .shift_text = "\ue5d8",
+        .backspace_text = "\ue14a",
+        .clear_text = "\ue872",
+        .accept_text = "\ue86c",
+        .cancel_text = "\ue5c9",
         .spacing = 8
 };
 
@@ -503,6 +503,106 @@ static void v_blt_tile(int x, int y, void* user_data) {
 }
 
 
+// ******** MENU SCREEN ********
+
+typedef enum
+{
+    APP_MENU_ITEM_EDIT_INTEGER,
+    APP_MENU_ITEM_EDIT_REAL,
+    APP_MENU_ITEM_EDIT_STRING,
+    APP_MENU_ITEM_EDIT_IPV4_ADDRESS,
+
+    APP_MENU_N_ITEMS
+} app_menu_item_t;
+
+
+static void menu_screen(void);
+
+
+static void menu_screen_func(bam_t* bam, bam_widget_handle_t widget, void* user_data) {
+    static int int_value;
+    static bam_real_t real_value;
+    static char string_value[64];
+    static bam_editor_ipv4_address_t ipv4_value;
+
+    bool accepted;
+
+    // open editor, depending on which menu item was pressed
+    switch(bam_get_widget_metadata(&m_bam, widget)) {
+    case APP_MENU_ITEM_EDIT_INTEGER:
+        accepted = bam_edit_integer(&m_bam, &int_value, true, &APP_EDITOR_STYLE);
+
+        if ( accepted ) {
+            printf("Accepted integer: %i\n", int_value);
+        }
+        break;
+
+    case APP_MENU_ITEM_EDIT_REAL:
+        accepted = bam_edit_real(&m_bam, &real_value, &APP_EDITOR_STYLE);
+
+        if ( accepted ) {
+            printf("Accepted real: %g\n", real_value);
+        }
+        break;
+
+    case APP_MENU_ITEM_EDIT_STRING:
+        accepted = bam_edit_string(&m_bam, string_value, sizeof(string_value),
+                                   true, &APP_EDITOR_STYLE);
+
+        if ( accepted ) {
+            printf("Accepted string: '%s'\n", string_value);
+        }
+        break;
+
+    case APP_MENU_ITEM_EDIT_IPV4_ADDRESS:
+        accepted = bam_edit_ipv4_address(&m_bam, &ipv4_value, &APP_EDITOR_STYLE);
+
+        if ( accepted ) {
+            printf("Accepted IPv4 address: %s\n", ipv4_value.str);
+        }
+        break;
+
+    default:
+        break;
+    }
+
+    // recreate menu screen
+    menu_screen();
+}
+
+
+static void menu_screen(void) {
+    static const char* MENU_CAPTIONS[APP_MENU_N_ITEMS] = {
+            "Edit Integer",
+            "Edit Real Number",
+            "Edit String",
+            "Edit IPv4 Address"
+    };
+
+    bam_widget_handle_t menu_items[APP_MENU_N_ITEMS];
+    bam_rect_t bounds;
+
+    // ensure any existing widgets are destroyed
+    bam_delete_widgets(&m_bam);
+
+    // create menu widgets
+    bounds.x1 = 0;
+    bounds.y1 = 0;
+    bounds.x2 = APP_DISPLAY_WIDTH;
+    bounds.y2 = APP_DISPLAY_HEIGHT;
+
+    bam_layout_grid(&m_bam, 1, APP_MENU_N_ITEMS, &bounds, 8, 8,
+                    &APP_DEFAULT_STYLE, true, menu_items, APP_MENU_N_ITEMS);
+
+    // set widget captions, metadata and callback functions
+    for (int i = 0; i < APP_MENU_N_ITEMS; i++) {
+        bam_set_widget_text(&m_bam, menu_items[i], MENU_CAPTIONS[i]);
+        bam_set_widget_metadata(&m_bam, menu_items[i], i);
+        bam_set_widget_callback(&m_bam, menu_items[i], menu_screen_func, NULL);
+    }
+}
+
+
 // ******** EXECUTION ENTRY POINT ********
 
 int main(int argc, char* argv[]) {
@@ -592,22 +692,11 @@ int main(int argc, char* argv[]) {
             &VTABLE,
             NULL);
 
+    // create menu screen
+    menu_screen();
+
     // start event loop
-    //bam_start(&m_bam);
-
-    int value = 123;
-    bam_edit_integer(&m_bam, &value, true, &APP_EDITOR_STYLE);
-
-    static char buffer[64];
-    strcpy(buffer, "Hello");
-
-    if ( bam_edit_string(&m_bam, buffer, 64,  false, &APP_EDITOR_STYLE) ) {
-        printf("ACCEPTED: '%s'\n", buffer);
-    } else {
-        printf("CANCELLED\n");
-    }
-
-
+    bam_start(&m_bam);
 
     // cleanup and exit
     exit_code = EXIT_SUCCESS;
@@ -616,7 +705,6 @@ cleanup4:
 
     // destroy tile surface
     SDL_FreeSurface(m_tile);
-
 
 cleanup3:
 

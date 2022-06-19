@@ -37,7 +37,9 @@ typedef struct bam bam_t;
 
 // ******** PLATFORM TYPES ********
 
-typedef double bam_real_t;
+#ifndef BAM_REAL_TYPE
+#define bam_real_t      double
+#endif // BAM_REAL_TYPE
 
 
 // ******** ERROR TYPES ********
@@ -274,6 +276,8 @@ typedef struct {
 bool bam_edit_integer(bam_t* bam, int* value, bool is_signed, const bam_editor_style_t* editor_style);
 
 bool bam_edit_real(bam_t* bam, bam_real_t* value, const bam_editor_style_t* editor_style);
+
+bool bam_edit_ipv4_address(bam_t* bam, bam_editor_ipv4_address_t* address, const bam_editor_style_t* editor_style);
 
 bool bam_edit_string(bam_t* bam, char* buffer, size_t buffer_size, bool allow_empty,
                      const bam_editor_style_t* editor_style);

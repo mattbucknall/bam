@@ -1,7 +1,7 @@
 add_executable(bam-demo
         main.c
         font-deja-vu-sans-48.c
-        font-deja-vu-sans-64.c
+        font-material-icons-48.c
         "${CMAKE_SOURCE_DIR}/bam.c"
 )
 

@@ -226,11 +226,6 @@ static int16_t metrics_calc_string_width(bam_t* bam, const uint8_t* text_start, 
 
 // ******** DRAWING ********
 
-#define BAM_WIDGET_ATTR_ENABLED         ((uint32_t) 1 << 0)
-#define BAM_WIDGET_ATTR_CHECKED         ((uint32_t) 1 << 1)
-#define BAM_WIDGET_ATTR_PRESSED         ((uint32_t) 1 << 2)
-
-
 static void draw_set_translation(bam_t* bam, int x, int y) {
     BAM_ASSERT_CTX(bam);
 
@@ -977,7 +972,8 @@ void bam_layout_grid(bam_t* bam, int n_cols, int n_rows, const bam_rect_t* bound
 typedef enum {
     BAM_NUMBER_TYPE_UNSIGNED_INT,
     BAM_NUMBER_TYPE_SIGNED_INT,
-    BAM_NUMBER_TYPE_REAL
+    BAM_NUMBER_TYPE_REAL,
+    BAM_NUMBER_TYPE_IPV4_ADDRESS
 } bam_number_type_t;
 
 
@@ -1043,35 +1039,113 @@ typedef struct {
 } bam_edit_string_ctx_t;
 
 
+static bool is_digit(char c) {
+    return (c >= '0') && (c <= '9');
+}
+
+
+static const char* validate_ip_number(const char* str_i, const char* str_e) {
+    unsigned int value = 0;
+
+    while(str_i < str_e) {
+        char c = *str_i++;
+
+        if ( is_digit(c) ) {
+            value = (value * 10) + c - '0';
+
+            if ( value > 255 ) {
+                return NULL;
+            }
+        } else if ( c == '.' ) {
+            break;
+        } else {
+            return NULL;
+        }
+    }
+
+    return str_i;
+}
+
+
 static void edit_number_enforce_format(bam_t* bam, bam_edit_number_ctx_t* ctx) {
     const char* str = ctx->buffer_begin;
     size_t length = ctx->buffer_ptr - ctx->buffer_begin;
     bam_widget_handle_t dp_widget = ctx->key_widgets[BAM_EDIT_NUMBER_KEY_DP];
     bam_widget_handle_t minus_widget = ctx->key_widgets[BAM_EDIT_NUMBER_KEY_MINUS];
 
-    switch (length) {
-    case 0:
-        bam_set_widget_enabled(bam, dp_widget, false);
-        bam_set_widget_enabled(bam, minus_widget, ctx->type != BAM_NUMBER_TYPE_UNSIGNED_INT);
-        break;
+    if ( ctx->type == BAM_NUMBER_TYPE_IPV4_ADDRESS ) {
+        int dot_count = 0;
+        int i = 0;
+        bool valid = false;
 
-    case 1:
-        bam_set_widget_enabled(bam, dp_widget, ctx->type == BAM_NUMBER_TYPE_REAL &&
-                                               lex_is_digit(str[0]));
+        while(i < length) {
+            char c;
+            int value = 0;
 
+            c = str[i++];
+
+            if ( !is_digit(c) ) {
+                break;
+            }
+
+            for (;;) {
+                value = (value * 10) + c - '0';
+
+                if ( i >= length || value > 255 ) {
+                    break;
+                }
+
+                c = str[i++];
+
+                if ( !is_digit(c) ) {
+                    break;
+                }
+            }
+
+            if ( i >= length ) {
+                valid = (dot_count == 3) && value <= 255 && is_digit(str[i - 1]);
+                break;
+            }
+
+            if ( c != '.' ) {
+                break;
+            }
+
+            dot_count++;
+
+            if ( dot_count > 3 ) {
+                break;
+            }
+        }
+
+        bam_set_widget_enabled(bam, dp_widget, length > 0 && str[length - 1] != '.' && dot_count < 3);
+        bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_ACCEPT], valid);
         bam_set_widget_enabled(bam, minus_widget, false);
-        break;
+    } else {
 
-    default:
-        bam_set_widget_enabled(bam, dp_widget, ctx->type == BAM_NUMBER_TYPE_REAL &&
-                                               strchr(str, '.') == NULL);
+        switch (length) {
+        case 0:
+            bam_set_widget_enabled(bam, dp_widget, false);
+            bam_set_widget_enabled(bam, minus_widget, ctx->type != BAM_NUMBER_TYPE_UNSIGNED_INT);
+            break;
 
-        bam_set_widget_enabled(bam, minus_widget, false);
+        case 1:
+            bam_set_widget_enabled(bam, dp_widget, ctx->type == BAM_NUMBER_TYPE_REAL &&
+                                                   lex_is_digit(str[0]));
+
+            bam_set_widget_enabled(bam, minus_widget, false);
+            break;
+
+        default:
+            bam_set_widget_enabled(bam, dp_widget, ctx->type == BAM_NUMBER_TYPE_REAL &&
+                                                   strchr(str, '.') == NULL);
+
+            bam_set_widget_enabled(bam, minus_widget, false);
+        }
+
+        bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_ACCEPT], length > 0 &&
+                                                                                  lex_is_digit(ctx->buffer_ptr[-1]));
     }
-
-    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_ACCEPT], length > 0 &&
-                                                                              lex_is_digit(ctx->buffer_ptr[-1]));
-
 
     bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_BACKSPACE], length > 0);
     bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_NUMBER_KEY_CLEAR], length > 0);
@@ -1134,6 +1208,7 @@ static bool edit_number(bam_t* bam, char* buffer, size_t buffer_size, bam_number
 
     const bam_vtable_t* vtable = bam->vtable;
     const bam_style_t* style;
+    bool ret_val;
     int spacing = editor_style->spacing;
     bam_font_metrics_t font_metrics;
     int field_height;
@@ -1223,7 +1298,13 @@ static bool edit_number(bam_t* bam, char* buffer, size_t buffer_size, bam_number
     edit_number_enforce_format(bam, &ctx);
 
     // start event loop
-    return bam_start(bam);
+    ret_val = bam_start(bam);
+
+    // destroy widgets
+    bam_delete_widgets(bam);
+
+    // return result
+    return ret_val;
 }
 
 
@@ -1275,6 +1356,18 @@ bool bam_edit_real(bam_t* bam, bam_real_t* value, const bam_editor_style_t* edit
     }
 
     return accepted;
+}
+
+
+bool bam_edit_ipv4_address(bam_t* bam, bam_editor_ipv4_address_t* address, const bam_editor_style_t* editor_style) {
+    BAM_ASSERT_CTX(bam);
+    BAM_ASSERT(address);
+    BAM_ASSERT(editor_style);
+
+    address->str[BAM_EDIT_IPV4_ADDRESS_BUFFER_SIZE - 1] = '\0';
+
+    return edit_number(bam, address->str, BAM_EDIT_IPV4_ADDRESS_BUFFER_SIZE,
+                       BAM_NUMBER_TYPE_IPV4_ADDRESS, editor_style);
 }
 
 
@@ -1334,7 +1427,8 @@ static void edit_string_enforce_format(bam_t* bam, bam_edit_string_ctx_t* ctx) {
 
     bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_BACKSPACE], length > 0);
     bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_CLEAR], length > 0);
-    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_ACCEPT], length > 0 || ctx->allow_empty);
+    bam_set_widget_enabled(bam, ctx->key_widgets[BAM_EDIT_STRING_KEY_ACCEPT],
+                           length > 0 || ctx->allow_empty);
 
     bam_force_widget_redraw(bam, ctx->field_widget);
 }
@@ -1423,6 +1517,7 @@ bool bam_edit_string(bam_t* bam, char* buffer, size_t buffer_size, bool allow_em
 
     const bam_vtable_t* vtable = bam->vtable;
     const bam_style_t* style;
+    bool ret_val;
     int spacing = editor_style->spacing;
     bam_font_metrics_t font_metrics;
     int field_height;
@@ -1531,7 +1626,14 @@ bool bam_edit_string(bam_t* bam, char* buffer, size_t buffer_size, bool allow_em
         bam_set_widget_bounds(bam, ctx.key_widgets[i], &bounds);
     }
 
-    return bam_start(bam);
+    // start event loop
+    ret_val = bam_start(bam);
+
+    // delete all widgets
+    bam_delete_widgets(bam);
+
+    // return result
+    return ret_val;
 }
 
 
